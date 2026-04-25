@@ -48,6 +48,7 @@
         background-image: url('./img/background0.png');
         background-size: cover;
         background-position: center;
+        transition: background-image 0.5s ease-in-out;
     }
     .active { display: block !important; }
     
@@ -139,7 +140,11 @@
         border: 2px solid var(--pink-border); 
         border-radius: 8px;
     }
-    .gallery-item { background: #fff; border: 2px solid var(--pink-dark); padding: 10px; border-radius: 8px; font-size: 12px; display: flex; flex-direction: column;}
+    .gallery-item { background: #fff; border: 2px solid var(--pink-dark); padding: 10px; border-radius: 8px; font-size: 12px; display: flex; flex-direction: column; transition: transform 0.1s;}
+    
+    /* 自定义受害者选中样式 */
+    .selected-victim { border-width: 4px !important; border-color: #f44336 !important; background-color: #ffe4e1 !important; transform: scale(0.97); box-shadow: inset 0 0 10px rgba(244,67,54,0.2); }
+    
     .gallery-header { display: flex; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 5px;}
     .gallery-header .girl-avatar { margin-right: 10px; min-width: 40px; height: 40px; font-size: 20px;}
     .gallery-desc { flex: 1; line-height: 1.6; color: #555; }
@@ -199,14 +204,17 @@
                 <span id="vol-display" style="display:inline-block; width:50px; text-align:left;">50%</span>
             </p>
             <hr style="border-top: 2px dashed var(--pink-border); margin: 20px 0;">
-            <p style="color: #d1495b; font-size: 14px;">🧪 实验选项提示：可以在图鉴中修改少女的忍耐力。</p>
             <p>
-                🧪 实验选项: 
+                🧪 自定义少女忍耐力: 
                 <button id="btn-exp" onclick="toggleExp()" style="width: 100px;">关闭</button>
+            </p>
+            <p>
+                👯 自定义受害者少女: 
+                <button id="btn-custom-victims" onclick="toggleCustomVictims()" style="width: 100px;">关闭</button>
             </p>
             <button onclick="resetCharacters()" style="background: #f44336; border-color: #d32f2f; margin-top: 10px;">重置所有少女数据</button>
         </div>
-        <div style="text-align: center; margin-top: 30px;"><button onclick="showScreen('screen-home')">返回主页</button></div>
+        <div style="text-align: center; margin-top: 30px;"><button onclick="goHome()">返回主页</button></div>
     </div>
 
     <div id="screen-scene" class="screen">
@@ -221,7 +229,6 @@
             <label style="margin-left: 10px;">隔间数量: <input type="number" id="cust-stalls" value="3" min="1" max="10" style="width: 50px;"></label><br><br>
             <label>事故简介: <textarea id="cust-desc" style="width: 100%; height: 40px;">这里写事故原因…</textarea></label><br>
             
-            <!-- 背景选择器 -->
             <div style="margin-top: 15px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #d1495b;">选择背景图:</label>
                 <div class="bg-selector" id="bg-selector"></div>
@@ -233,14 +240,28 @@
         </div>
 
         <div id="scene-detail-box" style="text-align: center; margin-top: 10px; background: var(--ui-bg); padding: 15px; border-radius: 10px;">
-    <h3 id="scene-desc-title" style="color: #d1495b; margin-top: 0;">请选择场景</h3>
-    <p id="scene-desc-text" style="height: 45px; font-size: 13px; line-height: 1.5; margin: 5px 0;">...</p>
-    <label>受害少女数量: <input type="number" id="girl-count" min="1" max="20" value="6" style="width: 50px; font-size: 16px;"></label>
-    <br><br>
-    <button id="btn-start" disabled onclick="startGame()">开始排队！</button>
-    <button onclick="showScreen('screen-home')" style="background: #ccc; border-color: #999;">返回</button>
-    
-    <button id="btn-delete-scene" onclick="deleteCurrentScene()" style="display: none; background: #f44336; border-color: #d32f2f; margin-left: 10px;">删除场景</button>
+            <h3 id="scene-desc-title" style="color: #d1495b; margin-top: 0;">请选择场景</h3>
+            <p id="scene-desc-text" style="height: 45px; font-size: 13px; line-height: 1.5; margin: 5px 0;">...</p>
+            <div id="victim-count-container">
+                <label>受害少女数量: <input type="number" id="girl-count" min="1" max="20" value="6" style="width: 50px; font-size: 16px;"></label>
+            </div>
+            <br><br>
+            <button id="btn-start" disabled onclick="handleStartBtn()">开始排队！</button>
+            <button onclick="goHome()" style="background: #ccc; border-color: #999;">返回</button>
+            
+            <button id="btn-delete-scene" onclick="deleteCurrentScene()" style="display: none; background: #f44336; border-color: #d32f2f; margin-left: 10px;">删除场景</button>
+        </div>
+    </div>
+
+    <div id="screen-select-victims" class="screen">
+        <h2>选择受害少女</h2>
+        <div style="text-align:center; font-size: 14px; margin-bottom: 10px; background: var(--ui-bg); padding: 5px; border-radius: 8px; border: 2px dashed var(--pink-border);">
+            请点击图鉴选择受害者，当前已选: <span id="selected-count" style="color:#d1495b; font-weight:bold; font-size: 18px;">0</span> 人
+        </div>
+        <div class="gallery-grid" id="select-container" style="height: 380px;"></div>
+        <div style="text-align: center; margin-top: 15px;">
+            <button id="btn-confirm-victims" onclick="startGame()" disabled style="background:#4caf50; border-color:#388e3c;">确定开始</button>
+            <button onclick="showScreen('screen-scene')" style="background: #ccc; border-color: #999;">返回重选</button>
         </div>
     </div>
 
@@ -248,7 +269,7 @@
         <h2>少女的秘密档案</h2>
         <div class="gallery-grid" id="gallery-container"></div>
         <br>
-        <div style="text-align: center;"><button onclick="showScreen('screen-home')">返回主页</button></div>
+        <div style="text-align: center;"><button onclick="goHome()">返回主页</button></div>
     </div>
 
     <div id="screen-game" class="screen">
@@ -282,14 +303,14 @@
             <h3 id="res-eval" style="margin-top: 20px; font-weight: bold; line-height: 1.4;"></h3>
         </div>
         <div style="text-align: center; margin-top: 20px;">
-            <button onclick="showScreen('screen-home')">返回主界面</button>
+            <button onclick="goHome()">返回主界面</button>
         </div>
     </div>
 </div>
 
 <script>
 /* ================= 全局设置与音量控制 ================= */
-let sysSettings = { audio: true, volume: 0.5, experimental: false };
+let sysSettings = { audio: true, volume: 0.5, experimental: false, customVictims: false };
 
 function toggleAudio() {
     sysSettings.audio = !sysSettings.audio;
@@ -306,6 +327,32 @@ function toggleExp() {
     sysSettings.experimental = !sysSettings.experimental;
     document.getElementById('btn-exp').innerText = sysSettings.experimental ? '开启' : '关闭';
     document.getElementById('btn-exp').style.backgroundColor = sysSettings.experimental ? '#f44336' : '#ccc';
+}
+
+function toggleCustomVictims() {
+    sysSettings.customVictims = !sysSettings.customVictims;
+    document.getElementById('btn-custom-victims').innerText = sysSettings.customVictims ? '开启' : '关闭';
+    document.getElementById('btn-custom-victims').style.backgroundColor = sysSettings.customVictims ? '#f44336' : '#ccc';
+}
+
+/* ================= 核心跳转与刷新控制 ================= */
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+// 返回主页并随机刷新看板娘和背景
+function goHome() {
+    // 随机抽取一个少女做看板娘
+    const randomGirl = pixelGirls[Math.floor(Math.random() * pixelGirls.length)];
+    document.querySelector('.mascot img').src = randomGirl;
+
+    // 随机抽取一个存在的背景
+    const allBgs = [ORIGINAL_BG, ...SCENES.filter(s => s.bg).map(s => s.bg)];
+    const randomBg = allBgs[Math.floor(Math.random() * allBgs.length)];
+    document.getElementById('screen-home').style.backgroundImage = `url(${randomBg})`;
+
+    showScreen('screen-home');
 }
 
 /* ================= 音频合成系统 (带音量控制) ================= */
@@ -430,26 +477,10 @@ const QUOTES = [
 const baseNames = ["星奈", "紬", "柚葉", "琴音", "涼風", "奈緒", "真白", "結月", "千夏", "莉子", "詩織", "瑞希", "日鞠", "凛音", "沙耶", "千寻", "美波", "芽衣", "亚里沙", "初雪"];
 
 const pixelGirls = [
-    "./img/girl0.png",
-    "./img/girl1.png",
-    "./img/girl2.png",
-    "./img/girl3.png",
-    "./img/girl4.png",
-    "./img/girl5.png",
-    "./img/girl6.png",
-    "./img/girl7.png",
-    "./img/girl8.png",
-    "./img/girl9.png",
-    "./img/girl10.png",
-    "./img/girl11.png",
-    "./img/girl12.png",
-    "./img/girl13.png",
-    "./img/girl14.png",
-    "./img/girl15.png",
-    "./img/girl16.png",
-    "./img/girl17.png",
-    "./img/girl18.png",
-    "./img/girl19.png"
+    "./img/girl0.png", "./img/girl1.png", "./img/girl2.png", "./img/girl3.png", "./img/girl4.png",
+    "./img/girl5.png", "./img/girl6.png", "./img/girl7.png", "./img/girl8.png", "./img/girl9.png",
+    "./img/girl10.png", "./img/girl11.png", "./img/girl12.png", "./img/girl13.png", "./img/girl14.png",
+    "./img/girl15.png", "./img/girl16.png", "./img/girl17.png", "./img/girl18.png", "./img/girl19.png"
 ];
 
 const customPatience = [
@@ -529,17 +560,14 @@ const baseInterval = 1000;
 let stats = { success: 0, fail: 0, total: 0, neglectedFails: 0 };
 let queue = [];
 let stalls = []; 
-let selectedBg = ORIGINAL_BG; // 默认使用原始背景
+let selectedBg = ORIGINAL_BG; 
+
+let selectedVictims = []; // 用于存放自定义选中的受害者ID
 
 function formatTime(seconds) {
     let m = Math.floor(seconds / 60);
     let s = Math.floor(seconds % 60);
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
 }
 
 /* ================= 界面初始化 ================= */
@@ -575,14 +603,71 @@ function selectScene(scene) {
         deleteBtn.style.display = 'none';
     }
 
-    // ===== 下面是新增的代码，用于实时切换背景 =====
+    // 更新场景界面背景图
     const sceneScreen = document.getElementById('screen-scene');
     if (scene.bg) {
         sceneScreen.style.backgroundImage = `url(${scene.bg})`;
     } else {
         sceneScreen.style.backgroundImage = `url(${ORIGINAL_BG})`;
     }
+
+    // 根据自定义受害者选项处理界面按钮
+    if (sysSettings.customVictims) {
+        document.getElementById('victim-count-container').style.display = 'none';
+        document.getElementById('btn-start').innerText = '选择受害少女';
+    } else {
+        document.getElementById('victim-count-container').style.display = 'block';
+        document.getElementById('btn-start').innerText = '开始排队！';
+    }
 }
+
+function handleStartBtn() {
+    if (sysSettings.customVictims) {
+        openVictimSelection();
+    } else {
+        startGame();
+    }
+}
+
+/* --- 自定义受害者选择逻辑 --- */
+function openVictimSelection() {
+    selectedVictims = [];
+    renderVictimSelection();
+    showScreen('screen-select-victims');
+}
+
+function renderVictimSelection() {
+    const cont = document.getElementById('select-container');
+    cont.innerHTML = '';
+    CHARACTERS.forEach(c => {
+        let isSelected = selectedVictims.includes(c.id);
+        let cssClass = isSelected ? 'gallery-item selected-victim' : 'gallery-item';
+        
+        cont.innerHTML += `
+            <div class="${cssClass}" style="border-color:${c.color}; cursor: pointer;" onclick="toggleVictimSelection(${c.id})">
+                <div class="gallery-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+                    <div class="girl-avatar" style="background:${c.color};">
+                        <img src="${c.face}" alt="${c.name}">
+                    </div>
+                    <div><h4 style="margin:0; color:#ff1493;">${c.name} <span class="tag">${c.identity}</span></h4></div>
+                </div>
+            </div>
+        `;
+    });
+    document.getElementById('selected-count').innerText = selectedVictims.length;
+    document.getElementById('btn-confirm-victims').disabled = selectedVictims.length === 0;
+}
+
+function toggleVictimSelection(id) {
+    let idx = selectedVictims.indexOf(id);
+    if (idx > -1) {
+        selectedVictims.splice(idx, 1);
+    } else {
+        selectedVictims.push(id);
+    }
+    renderVictimSelection();
+}
+/* -------------------------- */
 
 function toggleCustomForm() {
     let form = document.getElementById('custom-form');
@@ -606,16 +691,13 @@ function initBgSelector() {
     const selector = document.getElementById('bg-selector');
     selector.innerHTML = '';
     
-    // ===== 修改了这里：将文字替换为实际背景图 =====
     let originalOption = document.createElement('div');
-    originalOption.className = 'bg-option selected'; // 移除了 'original' 类
-    originalOption.style.backgroundImage = `url(${ORIGINAL_BG})`; // 直接加载游戏自带背景图
+    originalOption.className = 'bg-option selected'; 
+    originalOption.style.backgroundImage = `url(${ORIGINAL_BG})`; 
     originalOption.title = '原始背景';
     originalOption.onclick = () => selectBgOption(ORIGINAL_BG, originalOption);
     selector.appendChild(originalOption);
-    // ===========================================
     
-    // 添加场景背景选项
     SCENES.forEach(scene => {
         let option = document.createElement('div');
         option.className = 'bg-option';
@@ -624,20 +706,13 @@ function initBgSelector() {
         option.onclick = () => selectBgOption(scene.bg, option);
         selector.appendChild(option);
     });
-    // 默认选中原始背景
     selectedBg = ORIGINAL_BG;
 }
 
-// 补充缺失的背景选择逻辑，并加入实时预览功能
 function selectBgOption(bgUrl, element) {
-    // 1. 更新全局记录的选中背景
     selectedBg = bgUrl;
-
-    // 2. 更新红框选中状态（先移除所有选项的 selected 类，再给当前点击的加上）
     document.querySelectorAll('.bg-option').forEach(el => el.classList.remove('selected'));
     element.classList.add('selected');
-
-    // 3. 实时更新当前场景的背景图（满足你的第二个需求）
     document.getElementById('screen-scene').style.backgroundImage = `url(${bgUrl})`;
 }
 
@@ -648,16 +723,11 @@ function applyCustomScene() {
         stalls: parseInt(document.getElementById('cust-stalls').value) || 1,
         desc: "【自定义事故】" + (document.getElementById('cust-desc').value || "没有任何说明的突发事件..."),
         isCustom: true,
-        bg: selectedBg // 使用选中的背景
+        bg: selectedBg 
     };
     
-    // 将新场景添加到场景数组
     SCENES.push(customScene);
-    
-    // 重新渲染场景按钮
     renderSceneButtons();
-    
-    // 自动选中新建的场景
     selectScene(customScene);
 }
 
@@ -671,17 +741,11 @@ function updateCharStat(id, field, value) {
 
 function deleteCurrentScene() {
     if (!currentScene || !currentScene.isCustom) return;
-    
-    // 从 SCENES 数组中移除当前场景
     let index = SCENES.findIndex(s => s.id === currentScene.id);
     if (index > -1) {
         SCENES.splice(index, 1);
     }
-    
-    // 重新渲染场景按钮
     renderSceneButtons();
-    
-    // 清空选择状态
     currentScene = null;
     document.getElementById('scene-desc-title').innerText = "请选择场景";
     document.getElementById('scene-desc-text').innerText = "...";
@@ -736,14 +800,23 @@ function initGallery() {
 function startGame() {
     initAudio(); 
 
-    let count = parseInt(document.getElementById('girl-count').value);
-    if (count < 1) count = 1; if (count > 20) count = 20;
+    let count, shuffled;
+
+    // 判断受害人员的构造方式
+    if (sysSettings.customVictims) {
+        count = selectedVictims.length;
+        let selectedChars = CHARACTERS.filter(c => selectedVictims.includes(c.id));
+        shuffled = selectedChars.sort(() => 0.5 - Math.random());
+    } else {
+        count = parseInt(document.getElementById('girl-count').value);
+        if (count < 1) count = 1; if (count > 20) count = 20;
+        shuffled = [...CHARACTERS].sort(() => 0.5 - Math.random()).slice(0, count);
+    }
     
     gameTick = 0;
     stats = { success: 0, fail: 0, total: count, neglectedFails: 0 };
     
-    let shuffled = [...CHARACTERS].sort(() => 0.5 - Math.random());
-    queue = shuffled.slice(0, count).map(c => ({
+    queue = shuffled.map(c => ({
         ...c,
         patience: c.patienceMax,
         nextBubbleTick: gameTick + Math.floor(Math.random() * 15) + 3 
@@ -757,7 +830,6 @@ function startGame() {
     document.getElementById('queue-container').innerHTML = '';
     document.getElementById('stall-container').innerHTML = '';
 
-    // 设置游戏场景的背景图
     const gameScreen = document.getElementById('screen-game');
     if (currentScene.bg) {
         gameScreen.style.backgroundImage = `url(${currentScene.bg})`;
@@ -961,16 +1033,13 @@ function renderGameUI() {
         }
     });
 
-    // 动态更新右上角返回按钮
     let retreatBtn = document.getElementById('btn-retreat');
     if (queue.length === 0 && !stalls.every(s => s.occupant === null)) {
-        // 如果没人排队了，且还有人在隔间里，变成绿色直接结算按钮
         retreatBtn.innerText = "直接结算";
         retreatBtn.style.background = "#4caf50";
         retreatBtn.style.borderColor = "#388e3c";
         retreatBtn.onclick = quickSettle;
     } else {
-        // 如果不在结算阶段（比如新开一局，或还有人排队），必须重置回“返回标题”
         retreatBtn.innerText = "返回标题";
         retreatBtn.style.background = "#d1495b";
         retreatBtn.style.borderColor = ""; 
@@ -979,24 +1048,22 @@ function renderGameUI() {
 }
 
 function forceRetreat() {
-    if (gameLoop) clearInterval(gameLoop); // 停止游戏时间的流逝
-    showScreen('screen-home'); // 切回主界面
+    if (gameLoop) clearInterval(gameLoop); 
+    goHome(); 
 }
 
-// 直接结算（当没人在排队，且隔间里还有人时触发）
 function quickSettle() {
-    if (gameLoop) clearInterval(gameLoop); // 停止游戏时间的流逝
+    if (gameLoop) clearInterval(gameLoop); 
     
-    // 直接结算时，把还在隔间里的人提前判定为“成功解脱”
     stalls.forEach(stall => {
         if (!stall.isOpen && stall.occupant) {
-            stats.success++; // 算作成功守护尊严
-            stall.occupant = null; // 把人清空
-            stall.isOpen = true;   // 打开隔间门
+            stats.success++; 
+            stall.occupant = null; 
+            stall.isOpen = true;   
         }
     });
 
-    endGame(); // 结算数据更新完毕，跳到结算报告画面
+    endGame(); 
 }
 
 function endGame() {
