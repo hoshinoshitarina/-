@@ -195,7 +195,7 @@
         <h2>游戏设置</h2>
         <div class="settings-panel">
             <p>
-                🔊 环境音效: 
+                🔊 游戏音效: 
                 <button id="btn-audio" onclick="toggleAudio()" style="width: 100px;">开启</button>
             </p>
             <p>
@@ -333,6 +333,40 @@ function toggleCustomVictims() {
     sysSettings.customVictims = !sysSettings.customVictims;
     document.getElementById('btn-custom-victims').innerText = sysSettings.customVictims ? '开启' : '关闭';
     document.getElementById('btn-custom-victims').style.backgroundColor = sysSettings.customVictims ? '#f44336' : '#ccc';
+    // 修复：切换开关后，立刻刷新当前场景的按钮和UI状态
+    if (currentScene) {
+        selectScene(currentScene);
+    }
+}
+
+/* ================= 本地音频播放引擎 ================= */
+const AUDIO_FILES = {
+    belly: Array.from({length: 4}, (_, i) => `./audio/belly_rumbling${i+1}.ogg`),
+    fart: Array.from({length: 4}, (_, i) => `./audio/fart${i+1}.ogg`),
+    diarrhea: Array.from({length: 15}, (_, i) => `./audio/Diarrhea${i+1}.ogg`), // 统一更新为15个Diarrhea
+    flush: Array.from({length: 2}, (_, i) => `./audio/flush_the_toilet${i+1}.ogg`),
+    incontinence: Array.from({length: 11}, (_, i) => `./audio/incontinence${i+1}.ogg`)
+};
+
+function playLocalSound(type) {
+    if (!sysSettings.audio) return;
+    let files = AUDIO_FILES[type];
+    if (!files) return;
+    let src = files[Math.floor(Math.random() * files.length)];
+    let audio = new Audio(src);
+    
+    // 音量动态调整
+    let volMultiplier = 1.0;
+    if (type === 'belly') volMultiplier = 0.2; // 肠鸣声 20%
+    else if (type === 'fart') volMultiplier = 0.5; // 放屁声 50%
+    
+    audio.volume = sysSettings.volume * volMultiplier;
+    
+    // 为了防止高倍速下浏览器音频堆叠卡死，限制最高播放倍速并适当加速
+    audio.playbackRate = Math.min(gameSpeed, 4.0);
+    
+    // 使用 catch 防止浏览器自动播放策略报错
+    audio.play().catch(e => { console.warn("音频播放被拦截:", e); });
 }
 
 /* ================= 核心跳转与刷新控制 ================= */
@@ -355,106 +389,6 @@ function goHome() {
     showScreen('screen-home');
 }
 
-/* ================= 音频合成系统 (带音量控制) ================= */
-const AudioContext = window.AudioContext || window.webkitAudioContext;
-let audioCtx;
-
-function initAudio() {
-    if (!sysSettings.audio) return;
-    if (!audioCtx) audioCtx = new AudioContext();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-
-function playPffft() {
-    if(!sysSettings.audio || !audioCtx) return;
-    let osc = audioCtx.createOscillator();
-    let gain = audioCtx.createGain();
-    let filter = audioCtx.createBiquadFilter();
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(100 + Math.random()*50, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.15); 
-    
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(800, audioCtx.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15); 
-
-    let vol = 0.4 * sysSettings.volume;
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-    
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.15);
-}
-
-function playWetFart() {
-    if(!sysSettings.audio || !audioCtx) return;
-    let duration = 0.6 + Math.random() * 0.4; 
-    
-    let osc = audioCtx.createOscillator();
-    let gain = audioCtx.createGain();
-    let filter = audioCtx.createBiquadFilter();
-    
-    let lfo = audioCtx.createOscillator();
-    let lfoGain = audioCtx.createGain();
-    lfo.type = 'sine';
-    lfo.frequency.value = 18 + Math.random() * 5; 
-    lfoGain.gain.value = 0.8; 
-    lfo.connect(lfoGain);
-    lfoGain.connect(gain.gain); 
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(80 + Math.random()*20, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + duration);
-    
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(600, audioCtx.currentTime);
-    filter.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + duration);
-
-    let vol = 0.5 * sysSettings.volume;
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc.start();
-    lfo.start();
-    osc.stop(audioCtx.currentTime + duration);
-    lfo.stop(audioCtx.currentTime + duration);
-}
-
-function playFlush() {
-    if(!sysSettings.audio || !audioCtx) return;
-    let duration = 2.0;
-    let bufferSize = audioCtx.sampleRate * duration; 
-    let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    let data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-    
-    let noise = audioCtx.createBufferSource();
-    noise.buffer = buffer;
-    
-    let filter = audioCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(300, audioCtx.currentTime); 
-    filter.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + duration);
-    
-    let gain = audioCtx.createGain();
-    let vol = 0.4 * sysSettings.volume;
-    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-    
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(audioCtx.destination);
-    noise.start();
-}
-
 /* ================= 核心数据配置 ================= */
 const SCENES = [
     { id: 'park', name: "街心公园", stalls: 2, desc: "【事故原因】社团野餐时吃到了没烤熟的劣质烤肉。大家捂着肚子狂奔向公园公厕，但这里只有可怜的2个隔间！", bg: "./img/background1.png" },
@@ -467,11 +401,37 @@ const SCENES = [
 // 原始背景图
 const ORIGINAL_BG = './img/background0.png';
 
-const QUOTES = [
-    "肚子咕噜噜叫了...好痛...", "前面的同学，拜托快一点点！", "呜呜，腿已经在发抖了...", 
-    "不行了，感觉随时会决堤...", "（夹紧双腿）我可以忍住的...大概...", "要是被人发现就彻底社死了！", 
-    "括约肌，拜托了，再坚持一分钟！", "里面的人是在孵蛋吗？！快出来啊！", "别看我...我现在表情一定很奇怪...",
-    "要漏了要漏了！真的要漏了！", "只、只是稍微有点肚子痛而已！才没有很急！", "如果有下辈子，我绝对不吃那个了..."
+// 一般忍耐状态文案
+const QUOTES_NORMAL = [
+    "肚子咕噜噜叫了...好痛...", 
+    "前面的同学，拜托快一点点！", 
+    "（夹紧双腿）稍微有点不妙...", 
+    "只、只是稍微有点肚子痛而已！才没有很急！", 
+    "里面的人还要多久啊...",
+    "呼...深呼吸，我可以忍住的。",
+    "肚子怎么一直在叫啊，好丢人...",
+    "千万别在这个时候闹肚子啊...",
+    "快点出来吧，拜托了...",
+    "稍微蹲下来一点会不会好受些..."
+];
+
+// 极限忍耐状态文案（红血）
+const QUOTES_EXTREME = [
+    "呜呜，腿已经在发抖了...", 
+    "不行了，感觉随时会决堤...", 
+    "要是被人发现就彻底社死了！", 
+    "括约肌，拜托了，再坚持一分钟！", 
+    "里面的人是在孵蛋吗？！快出来啊！", 
+    "别看我...我现在表情一定很奇怪...",
+    "要漏了要漏了！真的要漏了！", 
+    "如果有下辈子，我绝对不吃那个了...",
+    "肚子好痛！痛死了！要憋不住了啊！",
+    "谁来救救我...马上就要出来了...",
+    "稍微动一下都要漏出来了...",
+    "求求你快点！我要不行了！",
+    "神啊，请赐给我一个空隔间吧！",
+    "防线...防线要崩溃了！",
+    "呜呜呜...感觉已经有一点点..."
 ];
 
 const baseNames = ["星奈", "紬", "柚葉", "琴音", "涼風", "奈緒", "真白", "結月", "千夏", "莉子", "詩織", "瑞希", "日鞠", "凛音", "沙耶", "千寻", "美波", "芽衣", "亚里沙", "初雪"];
@@ -644,12 +604,16 @@ function renderVictimSelection() {
         let cssClass = isSelected ? 'gallery-item selected-victim' : 'gallery-item';
         
         cont.innerHTML += `
-            <div class="${cssClass}" style="border-color:${c.color}; cursor: pointer;" onclick="toggleVictimSelection(${c.id})">
-                <div class="gallery-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
-                    <div class="girl-avatar" style="background:${c.color};">
+            <div class="${cssClass}" style="border-color:${c.color}; cursor: pointer; display:flex; flex-direction:column; justify-content:space-between;" onclick="toggleVictimSelection(${c.id})">
+                <div class="gallery-header" style="border-bottom: 1px dashed #ccc; margin-bottom: 5px; padding-bottom: 5px;">
+                    <div class="girl-avatar" style="background:${c.color}; width:30px; height:30px; min-width:30px; font-size:16px;">
                         <img src="${c.face}" alt="${c.name}">
                     </div>
-                    <div><h4 style="margin:0; color:#ff1493;">${c.name} <span class="tag">${c.identity}</span></h4></div>
+                    <div><h4 style="margin:0; font-size:13px; color:#ff1493;">${c.name} <span class="tag" style="font-size:9px;">${c.identity}</span></h4></div>
+                </div>
+                <div style="font-size:10px; color:#555; line-height:1.3; flex:1; overflow:hidden; text-overflow:ellipsis;">${c.bio}</div>
+                <div style="font-size:11px; margin-top:5px; background:#fff0f5; padding:3px; border-radius:4px; font-weight:bold; color:#d1495b; text-align:center;">
+                    ⏱️忍耐:${c.patienceMax/60}分 | 🚽占用:${c.toiletTimeMax/60}分
                 </div>
             </div>
         `;
@@ -798,8 +762,6 @@ function initGallery() {
 
 /* ================= 游戏核心循环 ================= */
 function startGame() {
-    initAudio(); 
-
     let count, shuffled;
 
     // 判断受害人员的构造方式
@@ -819,12 +781,21 @@ function startGame() {
     queue = shuffled.map(c => ({
         ...c,
         patience: c.patienceMax,
-        nextBubbleTick: gameTick + Math.floor(Math.random() * 15) + 3 
+        nextBubbleTick: gameTick + Math.floor(Math.random() * 15) + 3,
+        // 音效控制状态重置
+        nextNormalSoundTick: undefined,
+        nextRedBellyTick: undefined,
+        nextRedFartTick: undefined
     }));
 
     stalls = [];
     for(let i=0; i<currentScene.stalls; i++) {
-        stalls.push({ id: i, isOpen: true, occupant: null, timeLeft: 0, emptyTicks: 0 });
+        stalls.push({ 
+            id: i, isOpen: true, occupant: null, timeLeft: 0, emptyTicks: 0,
+            // 音效控制
+            phase1Duration: 0,
+            nextSoundTick: 0
+        });
     }
 
     document.getElementById('queue-container').innerHTML = '';
@@ -865,12 +836,14 @@ function assignStall(queueIndex) {
     emptyStall.timeLeft = girl.toiletTimeMax;
     emptyStall.emptyTicks = 0; 
     
-    playWetFart(); 
+    // 初始化上厕所阶段的声音时间轴
+    emptyStall.phase1Duration = 30 + 0.1 * girl.toiletTimeMax;
+    emptyStall.nextSoundTick = gameTick; // 一进去立马触发一次
+    
     renderGameUI();
 }
 
 function update() {
-    let playSoundThisTick = { normalFart: false, wetFart: false, flush: false };
     gameTick++;
 
     stalls.forEach(stall => {
@@ -885,29 +858,53 @@ function update() {
         let g = queue[i];
         g.patience--;
         
-        let isRed = (g.patience / g.patienceMax) < 0.25;
+        // 固定的红条阈值：剩余3分钟 (180秒)
+        let isRed = g.patience <= 180;
 
+        // ---------- 队列音效逻辑 ----------
         if (isRed) {
-            if (Math.random() < 0.08) playSoundThisTick.wetFart = true;
+            // 红血状态：持续播放肠鸣音
+            if (g.nextRedBellyTick === undefined || gameTick >= g.nextRedBellyTick) {
+                playLocalSound('belly');
+                g.nextRedBellyTick = gameTick + Math.floor(Math.random() * 2) + 3; // 3~4秒后再次触发
+            }
+            
+            // 每 3~5 秒 30%概率触发一次放屁
+            if (g.nextRedFartTick === undefined || gameTick >= g.nextRedFartTick) {
+                if (Math.random() < 0.30) {
+                    playLocalSound('fart');
+                }
+                g.nextRedFartTick = gameTick + Math.floor(Math.random() * 3) + 3; // 3~5秒判定CD
+            }
         } else {
-            if (Math.random() < 0.01) playSoundThisTick.normalFart = true; 
+            // 正常状态：每4~10秒触发一次判定
+            if (g.nextNormalSoundTick === undefined || gameTick >= g.nextNormalSoundTick) {
+                let randChance = Math.random();
+                if (randChance < 0.20) { 
+                    playLocalSound('belly'); // 20% 概率肠鸣
+                } else if (randChance < 0.25) { 
+                    playLocalSound('fart'); // 在接下来的 5% 概率内放屁 (20%~25%即5%)
+                }
+                g.nextNormalSoundTick = gameTick + Math.floor(Math.random() * 7) + 4; // 冷却设为 4~10 秒
+            }
         }
         
+        // 失禁逻辑
         if (g.patience <= 0) {
             stats.fail++;
-            
             if (stalls.some(s => s.emptyTicks >= 30)) {
                 stats.neglectedFails++;
             }
-            
             queue.splice(i, 1);
-            playSoundThisTick.wetFart = true; 
+            playLocalSound('incontinence'); // 播放失禁音效
             continue;
         }
 
         let urgencyModifier = isRed ? 2 : 6; 
         if (gameTick >= g.nextBubbleTick) {
-            g.showBubble = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+            // 根据红血状态选择对应的文案库
+            let quotePool = isRed ? QUOTES_EXTREME : QUOTES_NORMAL;
+            g.showBubble = quotePool[Math.floor(Math.random() * quotePool.length)];
             g.hideBubbleTick = gameTick + Math.floor(Math.random() * 4) + 3; 
             g.nextBubbleTick = gameTick + urgencyModifier + Math.floor(Math.random() * 20); 
         }
@@ -919,14 +916,28 @@ function update() {
     stalls.forEach(stall => {
         if (!stall.isOpen && stall.occupant) {
             stall.timeLeft--;
-            
-            if (Math.random() < 0.05) playSoundThisTick.wetFart = true;
+            let timeSpent = stall.occupant.toiletTimeMax - stall.timeLeft;
 
+            // ---------- 隔间音效逻辑 ----------
+            // 只要还在上厕所（timeLeft > 0），就持续播放腹泻声
+            if (gameTick >= stall.nextSoundTick && stall.timeLeft > 0) {
+                if (timeSpent <= stall.phase1Duration) {
+                    // 第一阶段：连续播放，模拟马上接下一个 (间隔2秒)
+                    playLocalSound('diarrhea');
+                    stall.nextSoundTick = gameTick + 2; 
+                } else {
+                    // 第二阶段：间隔稍微变长，每 2~4 秒播放一个，直到结束
+                    playLocalSound('diarrhea');
+                    stall.nextSoundTick = gameTick + Math.floor(Math.random() * 3) + 2;
+                }
+            }
+
+            // 倒计时结束，开门并播放冲水声
             if (stall.timeLeft <= 0) {
                 stats.success++;
                 stall.occupant = null;
                 stall.isOpen = true; 
-                playSoundThisTick.flush = true; 
+                playLocalSound('flush'); // <--- 冲水声移到这里，在开门解脱时播放
             }
         }
     });
@@ -936,10 +947,6 @@ function update() {
         setTimeout(endGame, 1000); 
         return; 
     }
-
-    if (playSoundThisTick.flush) playFlush();
-    else if (playSoundThisTick.wetFart) playWetFart(); 
-    else if (playSoundThisTick.normalFart) playPffft(); 
 
     renderGameUI();
 }
@@ -952,8 +959,13 @@ function renderGameUI() {
     const qCont = document.getElementById('queue-container');
     
     queue.forEach((g, index) => {
+        // 进度条百分比依然基于总忍耐度计算
         let pPercent = Math.max(0, (g.patience / g.patienceMax) * 100);
-        let colorClass = pPercent < 25 ? 'bar-patience low' : 'bar-patience';
+        
+        // 红血样式固定为忍耐低于180秒
+        let isRed = g.patience <= 180;
+        let colorClass = isRed ? 'bar-patience low' : 'bar-patience';
+        
         let dialogueText = g.showBubble ? `「 ${g.showBubble} 」` : '......';
         let cardId = `queue-card-${g.id}`;
         let existingCard = document.getElementById(cardId);
@@ -969,7 +981,7 @@ function renderGameUI() {
                     </div>
                     <div class="girl-info">
                         <strong>${g.name}</strong> <span class="tag" style="font-size:10px; color:#fff; background:var(--pink-dark); padding:2px 6px; border-radius:4px; margin-left:5px;">${g.identity}</span>
-                        <div style="font-size:11px; color:#666; margin-top:2px;">剩余忍耐: <span class="p-time" style="${pPercent<25?'color:red;font-weight:bold;':''}">${formatTime(g.patience)}</span></div>
+                        <div style="font-size:11px; color:#666; margin-top:2px;">剩余忍耐: <span class="p-time" style="${isRed?'color:red;font-weight:bold;':''}">${formatTime(g.patience)}</span></div>
                         <div class="bar-bg"><div class="bar-fill ${colorClass}" style="width:${pPercent}%;"></div></div>
                         <div style="font-size:11px; margin-top:4px; color:#8B4513; font-weight:bold;">🚽 需占用: ${formatTime(g.toiletTimeMax)}</div>
                     </div>
@@ -981,8 +993,8 @@ function renderGameUI() {
         } else {
             let pTime = existingCard.querySelector('.p-time');
             pTime.innerText = formatTime(g.patience);
-            pTime.style.color = pPercent < 25 ? 'red' : '';
-            pTime.style.fontWeight = pPercent < 25 ? 'bold' : '';
+            pTime.style.color = isRed ? 'red' : '';
+            pTime.style.fontWeight = isRed ? 'bold' : '';
             
             let bar = existingCard.querySelector('.bar-fill');
             bar.className = `bar-fill ${colorClass}`;
@@ -1059,7 +1071,8 @@ function quickSettle() {
         if (!stall.isOpen && stall.occupant) {
             stats.success++; 
             stall.occupant = null; 
-            stall.isOpen = true;   
+            stall.isOpen = true;
+            playLocalSound('flush'); // 点击直接结算时也播放冲水声
         }
     });
 
